@@ -1,0 +1,187 @@
+﻿@page "/"
+@using System.Timers;
+
+<style>
+    .container {
+        width: 400px;
+    }
+
+    button {
+        width: 100px;
+        height: 100px;
+        font-size: 50px;
+    }
+
+    .game-controls {
+        margin-bottom: 20px; /*Spacing between controls and game*/
+    }
+
+    .result {
+        color: red; /*Color for game-over messages*/
+        font-size: 24px;
+    }
+</style>
+
+<div class="container">
+    <div class="game-controls">
+        <!-- Dropdown menu for choosing the time limit -->
+        <label for="time-limit">Choose Time Limit: </label>
+        <select id="time-limit" @bind="selectedTimeLimit">
+            <option value="30">30 seconds</option>
+            <option value="60">60 seconds</option>
+            <option value="90">90 seconds</option>
+        </select>
+
+        <!-- Dropdown to choose the required number of matches to win -->
+        <label for="matches-to-win">Choose Matches to Win: </label>
+        <select id="matches-to-win" @bind="matchesToWin">
+            <option value="4">4 matches</option>
+            <option value="6">6 matches</option>
+            <option value="8">8 matches</option>
+        </select>
+
+        <!-- Start game button triggers StartGame method -->
+        <button @onclick="StartGame" class="btn btn-success">Start Game</button>
+    </div>
+
+    @if (gameStarted) //Only start game if gameStarted is true
+    {
+        <div class="row">
+            @for (var animalNumber = 0; animalNumber < shuffledAnimals.Count; animalNumber++)
+            {
+                var animal = shuffledAnimals[animalNumber];
+                var uniqueDescription = $"Button #{animalNumber}";
+                <div class="col-3">
+                    <button @onclick="@(() => ButtonClick(animal, uniqueDescription))"
+                            type="button" class="btn btn-outline-dark">
+                        <h1>@animal</h1>
+                    </button>
+                </div>
+            }
+        </div>
+        <div class="row">
+            <h2>Matches found: @matchesFound</h2>
+        </div>
+        <div class="row">
+            <h2>Time: @timeDisplay</h2>
+        </div>
+        <div class="row">
+            <h2>Score: @score</h2> <!-- Current player score -->
+        </div>
+
+    }
+
+    @if (gameOver)// Only render if game is over
+    {
+        <div class="row result">
+            <p>@gameOverMessage</p>
+        </div>
+    }
+</div>
+
+@code {
+    List<string> animalEmoji = new List<string>
+    {
+        "🐶","🐶",
+        "🐺","🐺",
+        "🐮","🐮",
+        "🦊","🦊",
+        "🐱","🐱",
+        "🦁","🦁",
+        "🐯","🐯",
+        "🐹","🐹",
+    };
+
+    List<string> shuffledAnimals = new List<string>();
+    int matchesFound = 0;
+    Timer timer;
+    int tenthsOfSecondsElapsed = 0;
+    string timeDisplay;
+    bool gameStarted = false; // Indicates whether the game has started
+    bool gameOver = false; // Indicates whether the game is over
+    string gameOverMessage = string.Empty; // Message displayed when the game ends
+    int selectedTimeLimit = 30; // Default to 30 seconds
+    int matchesToWin = 8; // Default matches to win
+    int score = 0; // Player's score, starts at 0
+
+    protected override void OnInitialized()
+    {
+        timer = new Timer(100);
+        timer.Elapsed += Timer_Tick;
+    }
+
+    // Start the game with the selected time limit and matches to win
+    private void StartGame()
+    {
+        SetUpGame();
+        gameStarted = true;
+        gameOver = false;
+        score = 0; // Reset the score at the start
+        matchesFound = 0;
+        gameOverMessage = string.Empty;
+        timer.Start();
+    }
+
+    private void SetUpGame()
+    {
+        Random random = new Random();
+        shuffledAnimals = animalEmoji.OrderBy(item => random.Next()).ToList();
+        tenthsOfSecondsElapsed = 0;
+        timeDisplay = "0.0s";
+    }
+
+    string lastAnimalFound = string.Empty;
+    string lastDescription = string.Empty;
+
+    private void ButtonClick(string animal, string animalDescription)
+    {
+        if (lastAnimalFound == string.Empty)
+        {
+            lastAnimalFound = animal;
+            lastDescription = animalDescription;
+        }
+        else if ((lastAnimalFound == animal) && (animalDescription != lastDescription))
+        {
+            // Match found
+            lastAnimalFound = string.Empty;
+            shuffledAnimals = shuffledAnimals
+                .Select(a => a.Replace(animal, string.Empty))
+                .ToList();
+
+            matchesFound++;
+            score++; // Increase the score once match
+            if (matchesFound >= matchesToWin)// If required matches are found
+            {
+                timer.Stop();
+                gameOver = true;
+                gameOverMessage = "You've won!";
+                gameStarted = false;
+            }
+        }
+        else
+        {
+            lastAnimalFound = string.Empty;
+            score--; // Wrong match, lose 1 point
+        }
+    }
+
+    private void Timer_Tick(Object source, ElapsedEventArgs e)
+    {
+        InvokeAsync(() =>
+        {
+            tenthsOfSecondsElapsed++;
+            timeDisplay = (tenthsOfSecondsElapsed / 10F).ToString("0.0s");// Update the time display
+
+            // Check if time limit is reached
+            if (tenthsOfSecondsElapsed >= selectedTimeLimit * 10)
+            {
+                timer.Stop();// Stop the timer
+                gameStarted = false;// Indicate that the game is over
+                gameOver = true;// Set game-over flag to true
+                gameOverMessage = "Time's up! Try again.";// Display failure message
+            }
+
+            StateHasChanged();
+        });
+    }
+}
